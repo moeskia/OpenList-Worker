@@ -2,6 +2,7 @@ import { Hono } from "hono"
 import {
   ensureEncryptionSecret,
   getDb,
+  getDbLoadError,
   getStoreStatus,
   isDbTrusted,
   isEncryptionReady,
@@ -443,7 +444,12 @@ publicRouter.post("/init/setup", async (c) => {
   if (!db.users) db.users = []
   // 安全护栏：若读取持久化存储失败（当前 db 只是不可信空壳），绝不能继续初始化，
   // 否则会把空库写回存储、覆盖真实配置（即「数据库被清空」的根因）。
-  if (!isDbTrusted()) {
+  //
+  // 注意区分两种「不可信」：
+  //   1. 读取抛错（getDbLoadError() 非空）——真正的读取失败，必须拦截；
+  //   2. 读取成功但存储为空（全新部署，如 sql 格式尚无 schema_info 初始化标记）
+  //      ——这是首次安装的正常状态，必须放行，否则安装向导永远 500。
+  if (!isDbTrusted() && getDbLoadError()) {
     console.error(
       "[DB] init/setup rejected: database could not be loaded from the persistence backend",
     )
