@@ -17,14 +17,29 @@ jobs:
           fetch-depth: 0
 
       - name: Setup SSH
+        env:
+          GITEE_SSH_PRIVATE_KEY: ${{ secrets.GITEE_SSH_PRIVATE_KEY }}
         run: |
+          set -euo pipefail
+          if [ -z "$GITEE_SSH_PRIVATE_KEY" ]; then
+            echo "::error::GITEE_SSH_PRIVATE_KEY is not configured"
+            exit 1
+          fi
           mkdir -p ~/.ssh
-          echo "${{ secrets.GITEE_SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          printf '%s\n' "$GITEE_SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan gitee.com >> ~/.ssh/known_hosts
 
       - name: Create single commit and push
+        env:
+          GITEE_REPO_URL: ${{ vars.GITEE_REPO_URL }}
         run: |
+          set -euo pipefail
+          if [ -z "$GITEE_REPO_URL" ]; then
+            echo "::error::GITEE_REPO_URL is not configured"
+            exit 1
+          fi
+
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
@@ -34,5 +49,6 @@ jobs:
           git commit -m "Sync from GitHub: $(date)"
 
           # Add Gitee remote and force push
-          git remote add gitee ${{ vars.GITEE_REPO_URL }}
+          git remote remove gitee 2>/dev/null || true
+          git remote add gitee "$GITEE_REPO_URL"
           git push --force gitee new-main:main
